@@ -1,0 +1,147 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sam-app
+
+  Sample SAM Template for sam-app
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+    MemorySize: 128
+    LoggingConfig:
+      LogFormat: JSON
+
+Resources:
+  BikeAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+
+  ProductsTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: Products
+      AttributeDefinitions:
+        -
+          AttributeName: id
+          AttributeType: S
+      KeySchema:
+        -
+          AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+
+  OrdersTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: Orders
+      AttributeDefinitions:
+      -
+        AttributeName: id
+        AttributeType: S
+      KeySchema:
+      -
+        AttributeName: id
+        KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+
+        
+  GetProductsFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: handlers/get_products
+      Handler: get_products.lambda_handler
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LambdaApplicationRoleSam"
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Events:
+        GetProducts:
+          Type: Api 
+          Properties:
+            RestApiId: !Ref BikeAPI
+            Path: /get_products
+            Method: get
+            
+  GetOrdersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: handlers/get_orders
+      Handler: get_orders.lambda_handler
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LambdaApplicationRoleSam"
+      Runtime: python3.12
+      Architectures:
+      - x86_64
+      Events:
+        GetOrders:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BikeAPI
+            Path: /orders
+            Method: get
+
+  GetOrderDetailsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: handlers/get_order
+      Handler: get_order.lambda_handler
+      Runtime: python3.12
+      Architectures:
+      - x86_64
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LambdaApplicationRoleSam"
+      Events:
+        GetOrderDetails:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BikeAPI
+            Path: /orders/{order_id}
+            Method: get
+
+  CreateOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: handlers/create_order
+      Handler: create_order.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LambdaApplicationRoleSam"
+      Events:
+        CreateOrder:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BikeAPI
+            Path: /orders
+            Method: post
+
+Outputs:
+  MicroserviceApi:
+    Description: "API Gateway endpoint URL for Prod stage"
+    Value: !Sub "https://${BikeAPI}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+  GetProductsFunction:
+    Description: "Get_Products Lambda Function ARN"
+    Value: !GetAtt GetProductsFunction.Arn
+  EndpointForGetProducts:
+    Description: "API Gateway endpoint URL for Prod stage for Get_Products function"
+    Value: !Sub "https://${BikeAPI}.execute-api.${AWS::Region}.amazonaws.com/Prod/get_products"
+  EndpointForGetOrders:
+      Description: "API Gateway endpoint URL for Prod stage for Get Order History"
+      Value: !Sub "https://${BikeAPI}.execute-api.${AWS::Region}.amazonaws.com/Prod/orders"
+  EndpointForGetOrderDetails:
+    Description: "API Gateway endpoint URL for Prod stage for Get Order Details"
+    Value: !Sub "https://${BikeAPI}.execute-api.${AWS::Region}.amazonaws.com/Prod/orders/{order_id}"
+  EndpointForCreateOrder:
+    Description: "API Gateway endpoint URL for Prod stage for Create Order"
+    Value: !Sub "https://${BikeAPI}.execute-api.${AWS::Region}.amazonaws.com/Prod/orders"
+
+
