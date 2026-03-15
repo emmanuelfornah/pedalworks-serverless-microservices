@@ -11,7 +11,7 @@ const Services = () => {
       <h2>Services</h2>
       <div className="services-row">
         <div className="services-img">
-          <img src={`${imageUrl}/repair.jpeg`} alt="" />
+          <img src={`${imageUrl}/images/repair.jpeg`} alt="" />
         </div>
         <div className="services-text">
           <p>
