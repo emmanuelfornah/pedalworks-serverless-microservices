@@ -1,0 +1,252 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+
+/* css */
+.App{
+  padding: 1rem;
+}
+.banner{
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.banner-dark{
+  background-color: black;
+  color: white;
+}
+
+.banner-light{
+  background-color: white;
+  color: black;
+}
+
+.nav-menu{
+  background-color: gray;
+  color: white;
+  display: flex;
+  font-style: italic;
+  font-weight: 600;
+}
+
+.nav-menu>*{
+  color: white;
+  text-decoration: none;
+}
+
+
+.nav-menu a {
+    float: left;
+    display: block;
+    color: white;
+    background-color: grey;
+    text-align: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    width: 25%;
+    text-decoration: none; /*stops the links from being underlined*/
+}
+
+.nav-menu a:hover {
+    background-color: darkblue;
+    color: white;
+}
+
+
+.products, .order-history, .order-details{
+  /* border: 2px solid black; */
+  border-top: none;
+  padding: .2rem;
+  flex: 3;
+}
+
+.products>h2, .sidebar>h2, .about-us>h2, .services>h2, .order-history>h2, .order-details>h2{
+  background-color: darkblue;
+  color: white;
+  padding: .5rem;
+  text-align: left;
+  font-family: Copperplate;
+}
+.products-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around; /* This will evenly space the product items across the line */
+  align-items: center;
+}
+
+.product-item {
+  flex: 0 1 30%; /* This sets the basis for each item to take about 30% of the line */
+  margin-bottom: 20px; /* Adds space below each item */
+  text-align: center; /* Center aligns the text and images */
+}
+
+.product-item img {
+  /* width: 100%; Make images responsive */
+  height: 200px; /* Maintain aspect ratio */
+  max-width: 200px; /* Limit image size */
+}
+
+form{
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+input[type="submit"] {
+  /* CSS properties go here */
+  background-color: #4CAF50;  /* Green background */
+  color: white;               /* White text */
+  padding: 14px 20px;         /* Padding around the text */
+  border: none;               /* No border */
+  border-radius: 4px;         /* Rounded corners */
+  cursor: pointer;            /* Pointer cursor on hover */
+}
+
+input[type="submit"]:hover {
+  background-color: #45a049;  /* Darker green background on hover */
+}
+
+
+.flex-mid{
+  display: flex;
+  /* border: 1px solid red; */
+}
+
+.sidebar{
+  flex: 1;
+  padding: .2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar .location-info{
+  background-color: lightgray;
+  padding: .5rem;
+  margin-bottom: 1.5rem;
+}
+
+.map-img-div{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.about-us>p{
+  background-color: lightgray;
+  padding: 1rem;
+  font-style: italic;
+}
+
+.about-us>img{
+  width: 100%;
+}
+
+.buttons>button{
+  padding: 4px 5px;         /* Padding around the text */
+  border: 1px solid black;               /* No border */
+  border-radius: 4px;         /* Rounded corners */
+  cursor: pointer;
+}
+
+.light-banner-btn{
+  background-color: lightgray;
+  color: black;
+  margin-right: 5px;
+}
+
+.dark-banner-btn{
+  background-color:lightgray;
+  color: black;
+}
+
+.buttons>button:hover {
+  background-color: gray;
+  color: white;
+}
+
+.services-row{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* gap: 4rem; */
+}
+
+.services-img{
+  flex: 2;
+  width: 100%;
+  margin-right: 4rem;
+}
+
+.services-cert{
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  /* border: 1px solid black; */
+}
+
+.services-cert>img{
+  height: 140px;
+}
+
+.services-img>img{
+  width: 100%;
+}
+
+.services-text{
+  flex: 2;
+  width: 25%;
+  text-align: left;
+}
+
+.footer{
+  background-color: black;
+  color: white;
+  padding: .3rem;
+  display: flex;
+  justify-content: center;
+  font-size: 12px;
+}

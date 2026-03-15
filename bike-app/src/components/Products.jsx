@@ -1,0 +1,27 @@
+const Products = () => {
+  // var company_name="AnyCompany";
+  return (
+    <div className="products" id="products-link">
+      <h2>Products</h2>
+      <div className="products-grid" id="products"></div>
+           <table width="100%">
+            <tr valign="bottom">
+                <td align="center">
+                    <img src="images/cassette.jpeg" width="130px"/>
+                    <p>Cassette $50.00</p>
+                </td>
+                <td align="center">
+                    <img src="images/crank-arm.jpeg" width="130px"/>
+                    <p>Crankset $215.00</p>
+                </td>
+                <td align="center">
+                    <img src="images/chain.jpeg" width="130px"/>
+                    <p>Chain $35.00</p>
+                </td>
+            </tr>
+        </table>
+    </div>
+  );
+};
+
+export default Products;
