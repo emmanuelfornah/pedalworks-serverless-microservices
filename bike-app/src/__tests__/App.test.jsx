@@ -11,7 +11,7 @@ describe("Renders main page correctly", async () => {
   it("Should render the main page correctly", async () => {
     // Setup
     await render(<App />);
-    const h1 = await screen.queryByText("AnyCompany bicycle parts");
+    const h1 = await screen.queryByText("PedalWorks bicycle parts");
 
     // Expectations
     expect(h1).not.toBeNull();
@@ -24,7 +24,7 @@ describe("Renders main page correctly", async () => {
     const copyrights = await screen.queryByText(
       "© " +
         year +
-        ", Amazon Web Services, Inc. or its Affiliates. All rights reserved."
+        " PedalWorks. All rights reserved."
     );
 
     // Expectations

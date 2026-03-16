@@ -45,7 +45,7 @@ const Sidebar = ({ setBannerColor }) => {
       <div className="about-us" id="about-us">
         <h2>About Us</h2>
         <p>
-          AnyCompany was founded by a group of friends who share a passion for
+          PedalWorks was founded by a group of friends who share a passion for
           bicycling and they all agree that it is always a great day to bike!
         </p>
         <img src={`${S3_BUCKET_URL}/images/biking-outdoors.jpeg`} alt="" />
