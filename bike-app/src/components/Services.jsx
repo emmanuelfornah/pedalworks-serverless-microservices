@@ -1,8 +1,4 @@
-//import { ReactNode } from "react";
-//import React from "react";
-
-// once the .env is added and the S3 bucket is linked, use the S3 bucket images, until then use the public images directory
-// S3 bucket implementation occurs in lab 2
+// S3 bucket URL — uses env variable when deployed, falls back to local images directory
 const imageUrl = import.meta.env.VITE_APP_S3_BUCKET_URL ? import.meta.env.VITE_APP_S3_BUCKET_URL : 'images';
 
 const Services = () => {

@@ -5,8 +5,7 @@ import Services from "./components/Services";
 import Products from "./components/Products";
 import { Link, Routes, Route } from 'react-router-dom';
 
-// once the .env is added and the S3 bucket is linked, use the S3 bucket images, until then use the public images directory
-// S3 bucket implementation occurs in lab 2
+// S3 bucket URL — uses env variable when deployed, falls back to local images directory
 const imageUrl = import.meta.env.VITE_APP_S3_BUCKET_URL ? import.meta.env.VITE_APP_S3_BUCKET_URL : 'images';
 
 function App() {
@@ -30,7 +29,7 @@ function App() {
                 <img src={`${imageUrl}/logo-black.png`} alt="" /> :
                 <img src={`${imageUrl}/logo-white.png`} alt="" />
             }
-            <h1>AnyCompany bicycle parts</h1>
+            <h1>PedalWorks bicycle parts</h1>
           </div>
         </nav>
         <div className="nav-menu">
@@ -47,8 +46,7 @@ function App() {
         <Services />
         <div className="footer">
           <p>
-            © {new Date().getFullYear()}, Amazon Web Services, Inc. or its
-            Affiliates. All rights reserved.
+            © {new Date().getFullYear()} PedalWorks. All rights reserved.
           </p>
         </div>
       </div>

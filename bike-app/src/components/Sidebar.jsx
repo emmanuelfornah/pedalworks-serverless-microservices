@@ -1,8 +1,7 @@
 import { useCallback } from 'react';
 import PropTypes from 'prop-types';
 
-// once the .env is added and the S3 bucket is linked, use the S3 bucket images, until then use the public images directory
-// S3 bucket implementation occurs in lab 2
+// S3 bucket URL — uses env variable when deployed, falls back to local images directory
 const imageUrl = import.meta.env.VITE_APP_S3_BUCKET_URL ? import.meta.env.VITE_APP_S3_BUCKET_URL : 'images';
 
 const Sidebar = ({ setBannerColor }) => {
@@ -45,7 +44,7 @@ const Sidebar = ({ setBannerColor }) => {
       <div className="about-us" id="about-us">
         <h2>About Us</h2>
         <p>
-          AnyCompany was founded by a group of friends who share a passion for
+          PedalWorks was founded by a group of friends who share a passion for
           bicycling and they all agree that it is always a great day to bike!
         </p>
         <img src={`${imageUrl}/images/biking-outdoors.jpeg`} alt="" />

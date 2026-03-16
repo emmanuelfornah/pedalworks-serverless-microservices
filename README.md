@@ -1,7 +1,6 @@
-# 🚲 AnyCompany Bicycle Parts — Serverless Microservices Platform
+# 🚲 PedalWorks — Serverless Microservices Platform
 
 **Emmanuel Fornah** · Dallas, TX · March 2026
-AWS Cloud Institute · Cloud Application Developer · UMGC MS Cloud Computing (4.0 GPA)
 
 ---
 
@@ -17,7 +16,7 @@ AWS Cloud Institute · Cloud Application Developer · UMGC MS Cloud Computing (4
 
 ## 1.1 Company Background
 
-AnyCompany Bicycle Parts is an e-commerce company founded by a group of friends who share a passion for cycling. The company sells bicycle parts, provides installation assistance, offers tune-up and repair services, and builds custom bicycles to meet specific customer needs.
+PedalWorks Bicycle Parts is an e-commerce company founded by a group of friends who share a passion for cycling. The company sells bicycle parts, provides installation assistance, offers tune-up and repair services, and builds custom bicycles to meet specific customer needs.
 
 The company serves two user types:
 
@@ -288,7 +287,7 @@ X-Ray active tracing is enabled on all Lambda functions and the Step Functions s
 ## 3.1 Repository Structure
 
 ```
-anycompany-bicycle-parts/
+pedalworks/
 ├── bike-app/                            # React/Vite frontend
 │   ├── src/
 │   │   ├── components/
@@ -349,7 +348,7 @@ aws sts get-caller-identity   # confirm connected to your account
 
 ```bash
 git clone https://github.com/emmanuelfornah/bike-app.git
-cd anycompany-bicycle-parts
+cd pedalworks
 ```
 
 **2. First deploy — guided setup**
@@ -466,15 +465,12 @@ npm run lint                    # ESLint check
 ## Author
 
 **Emmanuel Fornah**
-Medical Laboratory Scientist → Cloud Developer · Dallas, TX
 
 | | |
 |---|---|
-| 🎓 Education | MS Cloud Computing — UMGC (GPA 4.0) |
 | 🏅 Certifications | AWS CCP · AI Practitioner · Terraform Associate |
-| 💼 Current Role | Medical Lab Scientist — Parkland Health, Dallas |
 
-[Credly](https://credly.com/users/emmanuel-fornah) · [GitHub](https://github.com/emmanuelfornah)
+[GitHub](https://github.com/emmanuelfornah)
 
 ## License
 

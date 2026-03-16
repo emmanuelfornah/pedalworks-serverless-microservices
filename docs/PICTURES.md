@@ -1,7 +1,6 @@
-# 🚲 AnyCompany Bicycle Parts — Build Progress
+# 🚲 PedalWorks Bicycle Parts — Build Progress
 
 **Emmanuel Fornah · Dallas, TX · March 2026**
-AWS Cloud Institute · Cloud Application Developer · UMGC MS Cloud Computing (4.0 GPA)
 
 ---
 
@@ -45,11 +44,11 @@ Amazon API Gateway (BikeAPI — REST)
 
 ---
 
-**Step 2 — AnyCompany landing page with placeholder content**
+**Step 2 — PedalWorks landing page with placeholder content**
 
-![AnyCompany placeholder](screenshots/02_anycompany_landing_page_placeholder.png)
+![PedalWorks placeholder](screenshots/02_pedalworks_landing_page_placeholder.png)
 
-> **What happened:** Replaced the default Vite starter page with the AnyCompany Bicycle Parts layout.
+> **What happened:** Replaced the default Vite starter page with the PedalWorks Bicycle Parts layout.
 >
 > **Technical detail:** `App.jsx` renders the component tree: `Sidebar` (navigation) + `Products` (main content area). At this stage, `Products.jsx` returns static HTML with the placeholder text "Products will display here." — no API calls, no state management. This establishes the component architecture before wiring up data fetching. React Router is not yet integrated.
 >
@@ -179,7 +178,7 @@ Amazon API Gateway (BikeAPI — REST)
 
 **Step 11 — Products displaying from DynamoDB via API Gateway**
 
-![Products displaying](screenshots/11_anycompany_products_displaying.png)
+![Products displaying](screenshots/11_pedalworks_products_displaying.png)
 
 > **What happened:** The React frontend now fetches and renders product data from the live API endpoint.
 >
