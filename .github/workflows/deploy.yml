@@ -1,0 +1,74 @@
+# Deploys the PedalWorks SAM backend (backend/sam-app) to AWS.
+#
+# Authentication uses GitHub's OIDC provider — no long-lived AWS access keys
+# are stored in this repository. To enable deployments you need:
+#
+#   1. An IAM OIDC identity provider for token.actions.githubusercontent.com
+#      (one per AWS account).
+#   2. An IAM role whose trust policy allows the GitHub OIDC provider to
+#      assume it for this repository (and ideally only the dev branch), with
+#      permissions to deploy the stack (CloudFormation, Lambda, API Gateway,
+#      DynamoDB, IAM role creation, S3 for the SAM deployment bucket).
+#   3. Repository configuration (Settings > Secrets and variables > Actions):
+#      - Secret  AWS_ROLE_ARN : ARN of the IAM deploy role from step 2.
+#      - Variable AWS_REGION  : AWS region to deploy into.
+#        Defaults to us-east-1 (matches samconfig.toml) when not set.
+#
+# The stack name below matches samconfig.toml so CLI and CI deploys target
+# the same CloudFormation stack.
+
+name: Deploy SAM Backend
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'backend/sam-app/**'
+      - '.github/workflows/deploy.yml'
+
+permissions:
+  id-token: write # required to request the GitHub OIDC token
+  contents: read  # required to check out the repository
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  STACK_NAME: sam-app
+
+jobs:
+  deploy:
+    name: Build and deploy SAM app
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - name: Build SAM application
+        working-directory: backend/sam-app
+        run: sam build
+
+      - name: Deploy SAM application
+        working-directory: backend/sam-app
+        run: |
+          sam deploy \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --capabilities CAPABILITY_IAM \
+            --resolve-s3 \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset
