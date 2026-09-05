@@ -1,28 +1,38 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: >
-  sam-app
 
-  SAM Template for GetProducts microservice
+Description: >
+  PedalWorks serverless application.
+  React frontend delivered through CloudFront and private S3,
+  Cognito authentication, API Gateway, Lambda, and DynamoDB.
 
 Globals:
   Function:
     Timeout: 3
 
 Resources:
+
+  # ============================================================
+  # DynamoDB
+  # ============================================================
+
   ProductsTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: Products
       AttributeDefinitions:
-        - AttributeName: "id"
-          AttributeType: "S"
+        - AttributeName: id
+          AttributeType: S
       KeySchema:
-        - AttributeName: "id"
-          KeyType: "HASH"
+        - AttributeName: id
+          KeyType: HASH
       ProvisionedThroughput:
         ReadCapacityUnits: 3
         WriteCapacityUnits: 3
+
+  # ============================================================
+  # Lambda Execution Role
+  # ============================================================
 
   GetProductsExecutionRole:
     Type: AWS::IAM::Role
@@ -36,6 +46,7 @@ Resources:
                 - lambda.amazonaws.com
             Action:
               - sts:AssumeRole
+
       Policies:
         - PolicyName: GetProductsDynamoDBRead
           PolicyDocument:
@@ -48,6 +59,7 @@ Resources:
                   - dynamodb:Scan
                 Resource:
                   - !GetAtt ProductsTable.Arn
+
         - PolicyName: LambdaLogging
           PolicyDocument:
             Version: '2012-10-17'
@@ -58,6 +70,10 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: '*'
+
+  # ============================================================
+  # Lambda + API Gateway
+  # ============================================================
 
   GetProductsFunction:
     Type: AWS::Serverless::Function
@@ -75,13 +91,171 @@ Resources:
             Path: /get_products
             Method: get
 
+  # ============================================================
+  # Frontend S3 Bucket
+  # ============================================================
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+
+  # ============================================================
+  # CloudFront Origin Access Control
+  # ============================================================
+
+  FrontendOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-frontend-oac"
+        Description: Access control for PedalWorks frontend S3 bucket
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # ============================================================
+  # CloudFront Distribution
+  # ============================================================
+
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+
+        Origins:
+          - Id: FrontendS3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt FrontendOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+
+        DefaultCacheBehavior:
+          TargetOriginId: FrontendS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+
+  # ============================================================
+  # S3 Bucket Policy - CloudFront Only
+  # ============================================================
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action:
+              - s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub
+                  - "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${DistributionId}"
+                  - DistributionId: !Ref FrontendDistribution
+
+  # ============================================================
+  # Amazon Cognito
+  # ============================================================
+
+  PedalWorksUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${AWS::StackName}-users"
+
+      UsernameAttributes:
+        - email
+
+      AutoVerifiedAttributes:
+        - email
+
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+
+  PedalWorksUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "${AWS::StackName}-web-client"
+      UserPoolId: !Ref PedalWorksUserPool
+
+      # Browser applications must not contain a client secret.
+      GenerateSecret: false
+
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
+
+# ==============================================================
+# Outputs
+# ==============================================================
+
 Outputs:
+
   MicroserviceApi:
-    Description: "API Gateway endpoint URL for Prod stage"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/"
-  GetProductsFunction:
-    Description: "GetProducts Lambda Function ARN"
-    Value: !GetAtt GetProductsFunction.Arn
+    Description: API Gateway base URL for the Prod stage
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod"
+
   EndpointForGetProducts:
-    Description: "GetProducts API endpoint"
+    Description: GetProducts API endpoint
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/get_products/"
+
+  GetProductsFunction:
+    Description: GetProducts Lambda Function ARN
+    Value: !GetAtt GetProductsFunction.Arn
+
+  FrontendBucketName:
+    Description: S3 bucket containing the PedalWorks React frontend
+    Value: !Ref FrontendBucket
+
+  CloudFrontDistributionId:
+    Description: PedalWorks CloudFront distribution ID
+    Value: !Ref FrontendDistribution
+
+  CloudFrontURL:
+    Description: PedalWorks public frontend URL
+    Value: !Sub "https://${FrontendDistribution.DomainName}"
+
+  CognitoUserPoolId:
+    Description: PedalWorks Cognito User Pool ID
+    Value: !Ref PedalWorksUserPool
+
+  CognitoUserPoolClientId:
+    Description: PedalWorks Cognito web application client ID
+    Value: !Ref PedalWorksUserPoolClient
