@@ -14,8 +14,9 @@ GitHub.
   application resources (Lambda, API Gateway, DynamoDB, Cognito, CloudFront),
   plus IAM role management limited to `pedalworks-app*` roles.
 
-The GitHub OIDC provider already exists in the account and is referenced via the
-`OIDCProviderArn` parameter (not recreated).
+The GitHub OIDC provider is assumed to already exist in the account. Its ARN is
+derived automatically from the deploying account (no hardcoded account ID), so
+the template is portable across accounts.
 
 ## Deploy the role (one time)
 

@@ -1,0 +1,73 @@
+# PedalWorks CI — quality gate
+#
+# Runs on every push and pull request. No AWS credentials required.
+#   - Frontend: ESLint + Vitest
+#   - Backend:  SAM template validation + Python syntax check
+#
+# This is separate from deploy.yml, which handles infrastructure deployment.
+
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend — lint and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bike-app
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: bike-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npx vitest --root src --run
+
+  backend:
+    name: Backend — validate template
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Install AWS SAM CLI
+        uses: aws-actions/setup-sam@f84ec7d548307efafe33230528756de3c5841a17 # v2
+        with:
+          use-installer: true
+
+      - name: Validate SAM template (lint)
+        working-directory: backend/sam-app
+        run: sam validate --lint
+
+      - name: Check Python handler syntax
+        run: |
+          python -m py_compile \
+            backend/sam-app/handlers/get_products/get_products.py \
+            backend/sam-app/handlers/create_order/create_order.py \
+            backend/sam-app/seed_products.py

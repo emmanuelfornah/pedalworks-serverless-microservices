@@ -26,11 +26,6 @@ Parameters:
       Git ref allowed to assume the role (e.g. refs/heads/dev, refs/heads/main,
       or refs/heads/* for any branch).
 
-  OIDCProviderArn:
-    Type: String
-    Default: arn:aws:iam::390402568202:oidc-provider/token.actions.githubusercontent.com
-    Description: ARN of the existing GitHub Actions OIDC provider in this account.
-
   RoleName:
     Type: String
     Default: GitHubActionsPedalWorksDeploy
@@ -48,7 +43,8 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Ref OIDCProviderArn
+              # Derived from the deploying account — no hardcoded account ID.
+              Federated: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
