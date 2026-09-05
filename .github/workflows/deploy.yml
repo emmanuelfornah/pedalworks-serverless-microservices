@@ -10,14 +10,22 @@
 
 name: Deploy PedalWorks
 
+# NOTE: Auto-deploy on push is intentionally disabled.
+#
+# The live backend is managed by the "pedalworks-fixed" CloudFormation stack,
+# which contains more resources than backend/sam-app/template.yaml describes
+# (full Orders + Inventory report pipeline, Cognito domain, SNS, Step Functions).
+# Deploying this template over that stack would DELETE those live resources, and
+# the previous target stack ("sam-app") is stuck in REVIEW_IN_PROGRESS and cannot
+# be updated. Until the template is reconciled with the live stack, this workflow
+# runs only when triggered manually.
 on:
-  push:
-    branches:
-      - dev
-    paths:
-      - 'backend/sam-app/**'
-      - 'bike-app/**'
-      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm you understand this may modify live infrastructure'
+        required: true
+        default: ''
 
 permissions:
   id-token: write
@@ -29,7 +37,9 @@ concurrency:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  STACK_NAME: sam-app
+  # Stack name is provided via the DEPLOY_STACK_NAME repo variable so this
+  # workflow never silently targets the retired "sam-app" stack.
+  STACK_NAME: ${{ vars.DEPLOY_STACK_NAME }}
 
 jobs:
   deploy:
@@ -37,6 +47,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ----------------------------------------------------------
+      # Manual confirmation guard
+      # ----------------------------------------------------------
+
+      - name: Confirm intentional deploy
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy" ]; then
+            echo "Deploy not confirmed. Re-run the workflow and type 'deploy' in the confirm input." >&2
+            exit 1
+          fi
+          if [ -z "${STACK_NAME}" ]; then
+            echo "DEPLOY_STACK_NAME repository variable is not set. Refusing to deploy to an unknown stack." >&2
+            exit 1
+          fi
+          echo "Deploy confirmed for stack: ${STACK_NAME}"
+
       # ----------------------------------------------------------
       # Source
       # ----------------------------------------------------------
