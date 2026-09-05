@@ -1,0 +1,160 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  GitHub Actions OIDC deploy role for the PedalWorks pipeline.
+  Creates an IAM role that the pedalworks-serverless-microservices repository
+  can assume via GitHub OIDC (no long-lived AWS keys). Permissions are scoped
+  to what the deploy workflow needs: CloudFormation/SAM, the dedicated
+  application stack resources, frontend S3 + CloudFront, and seeding.
+
+Parameters:
+
+  GitHubOrg:
+    Type: String
+    Default: emmanuelfornah
+    Description: GitHub organization or user that owns the repository.
+
+  GitHubRepo:
+    Type: String
+    Default: pedalworks-serverless-microservices
+    Description: Repository name allowed to assume this role.
+
+  GitHubRefPattern:
+    Type: String
+    Default: refs/heads/dev
+    Description: >
+      Git ref allowed to assume the role (e.g. refs/heads/dev, refs/heads/main,
+      or refs/heads/* for any branch).
+
+  OIDCProviderArn:
+    Type: String
+    Default: arn:aws:iam::390402568202:oidc-provider/token.actions.githubusercontent.com
+    Description: ARN of the existing GitHub Actions OIDC provider in this account.
+
+  RoleName:
+    Type: String
+    Default: GitHubActionsPedalWorksDeploy
+    Description: Name of the IAM role to create.
+
+Resources:
+
+  PedalWorksDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref OIDCProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                # Only this repo + ref may assume the role.
+                token.actions.githubusercontent.com:sub:
+                  !Sub "repo:${GitHubOrg}/${GitHubRepo}:ref:${GitHubRefPattern}"
+
+      Policies:
+        # ----------------------------------------------------------
+        # CloudFormation / SAM deploy
+        # ----------------------------------------------------------
+        - PolicyName: CloudFormationDeploy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:GetTemplate
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:ListStackResources
+                Resource: '*'
+
+        # ----------------------------------------------------------
+        # SAM managed artifact bucket + frontend bucket access
+        # ----------------------------------------------------------
+        - PolicyName: S3Deploy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketVersioning
+                  - s3:PutEncryptionConfiguration
+                  - s3:GetBucketPolicy
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource:
+                  - arn:aws:s3:::aws-sam-cli-managed-default*
+                  - arn:aws:s3:::aws-sam-cli-managed-default*/*
+                  - !Sub "arn:aws:s3:::${AWS::StackName}*"
+                  - !Sub "arn:aws:s3:::${AWS::StackName}*/*"
+                  - arn:aws:s3:::pedalworks-app*
+                  - arn:aws:s3:::pedalworks-app*/*
+
+        # ----------------------------------------------------------
+        # Resources the application stack manages
+        # ----------------------------------------------------------
+        - PolicyName: ApplicationResources
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:*
+                  - apigateway:*
+                  - dynamodb:*
+                  - cognito-idp:*
+                  - cloudfront:*
+                Resource: '*'
+
+        # ----------------------------------------------------------
+        # IAM role management for the SAM stack (scoped by naming)
+        # ----------------------------------------------------------
+        - PolicyName: IamForStack
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:TagRole
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/pedalworks-app*"
+
+Outputs:
+
+  DeployRoleArn:
+    Description: >
+      ARN of the deploy role. Set this as the GitHub repository secret
+      AWS_ROLE_ARN.
+    Value: !GetAtt PedalWorksDeployRole.Arn
