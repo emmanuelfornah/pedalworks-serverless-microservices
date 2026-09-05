@@ -81,6 +81,10 @@ jobs:
             --no-confirm-changeset \
             --no-fail-on-empty-changeset
 
+      - name: Seed DynamoDB products
+        working-directory: backend/sam-app
+        run: python seed_products.py
+
       # ----------------------------------------------------------
       # Read deployed infrastructure values from CloudFormation
       # ----------------------------------------------------------
@@ -158,6 +162,7 @@ jobs:
           echo "### PedalWorks Deployment Complete" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- SAM backend deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- DynamoDB products seeded" >> "$GITHUB_STEP_SUMMARY"
           echo "- React frontend built" >> "$GITHUB_STEP_SUMMARY"
           echo "- Frontend uploaded to private S3" >> "$GITHUB_STEP_SUMMARY"
           echo "- CloudFront invalidation requested" >> "$GITHUB_STEP_SUMMARY"
