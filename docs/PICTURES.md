@@ -249,14 +249,14 @@ Amazon API Gateway (BikeAPI — REST)
 
 ```bash
 # Frontend
-cd microservices/bike-app
+cd bike-app
 npm install
 npm run dev              # Vite dev server — port 8081
-npm run test             # Vitest with watch mode
+npm run test             # Vitest with coverage
 npm run test -- --coverage  # Coverage report
 
 # Backend
-cd microservices/backend/sam-app
+cd backend/sam-app
 sam validate             # Check template syntax
 sam build                # Package Lambda code
 sam local invoke GetProductsFunction  # Local test

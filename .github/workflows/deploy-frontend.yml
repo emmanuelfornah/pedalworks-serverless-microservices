@@ -1,0 +1,70 @@
+name: Deploy Frontend
+
+# Builds the React/Vite app and publishes it to an S3 bucket (optionally
+# fronted by CloudFront). Authentication to AWS uses GitHub OIDC — no
+# long-lived access keys are stored in the repository.
+#
+# Required GitHub secrets/variables (see docs/DEPLOYMENT.md):
+#   AWS_ROLE_ARN                 (secret)  — IAM role assumable via OIDC
+#   FRONTEND_S3_BUCKET           (variable) — target S3 bucket for the site
+#   VITE_API_GATEWAY_URL         (variable) — backend API base URL baked into the build
+#   VITE_APP_S3_BUCKET_URL       (variable) — public URL of the product-images bucket
+#   CLOUDFRONT_DISTRIBUTION_ID   (variable, optional) — enables cache invalidation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "bike-app/**"
+      - ".github/workflows/deploy-frontend.yml"
+
+permissions:
+  id-token: write # required for OIDC
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    name: Build and deploy to S3
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bike-app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: bike-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_GATEWAY_URL: ${{ vars.VITE_API_GATEWAY_URL }}
+          VITE_APP_S3_BUCKET_URL: ${{ vars.VITE_APP_S3_BUCKET_URL }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync build artifacts to S3
+        run: aws s3 sync dist/ "s3://${{ vars.FRONTEND_S3_BUCKET }}" --delete
+
+      - name: Invalidate CloudFront cache
+        if: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        run: >-
+          aws cloudfront create-invalidation
+          --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}"
+          --paths "/*"

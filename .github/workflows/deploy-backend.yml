@@ -1,0 +1,66 @@
+name: Deploy Backend
+
+# Builds and deploys the serverless backend (Lambda + API Gateway + DynamoDB)
+# with the AWS SAM CLI. Authentication to AWS uses GitHub OIDC — no long-lived
+# access keys are stored in the repository.
+#
+# Required GitHub secrets (see docs/DEPLOYMENT.md):
+#   AWS_ROLE_ARN (secret) — IAM role assumable via OIDC with permission to
+#                           deploy the SAM stack.
+#
+# First-time setup: run `sam deploy --guided` locally once (see
+# docs/DEPLOYMENT.md) so the referenced IAM role and stack exist.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+
+permissions:
+  id-token: write # required for OIDC
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    name: SAM build and deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate SAM template
+        working-directory: backend/sam-app
+        run: sam validate --lint
+
+      - name: SAM build
+        working-directory: backend/sam-app
+        run: sam build
+
+      - name: SAM deploy
+        working-directory: backend/sam-app
+        run: >-
+          sam deploy
+          --no-confirm-changeset
+          --no-fail-on-empty-changeset
