@@ -5,7 +5,7 @@ import { Link, Routes, Route } from 'react-router-dom';
 
 const API_GATEWAY_BASE_URL = import.meta.env.VITE_API_GATEWAY_URL;
 const IMAGE_BASE_URL =
-  import.meta.env.VITE_APP_S3_BUCKET_URL || "/images";
+  import.meta.env.VITE_APP_S3_BUCKET_URL || '/images';
 
 const Products = () => {
   const [productsList, setProductsList] = useState([]);
