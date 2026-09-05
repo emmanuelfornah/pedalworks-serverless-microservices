@@ -37,9 +37,13 @@ concurrency:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  # Stack name is provided via the DEPLOY_STACK_NAME repo variable so this
-  # workflow never silently targets the retired "sam-app" stack.
-  STACK_NAME: ${{ vars.DEPLOY_STACK_NAME }}
+  # This workflow deploys backend/sam-app/template.yaml as its OWN dedicated
+  # stack. It must never target "pedalworks-fixed" (the live stack that owns
+  # the full Orders + Inventory pipeline) because this template is a subset and
+  # deploying it there would delete those live resources.
+  # Override only with another NEW/dedicated stack via the DEPLOY_STACK_NAME var.
+  STACK_NAME: ${{ vars.DEPLOY_STACK_NAME || 'pedalworks-app' }}
+  PROTECTED_STACK: pedalworks-fixed
 
 jobs:
   deploy:
@@ -58,7 +62,12 @@ jobs:
             exit 1
           fi
           if [ -z "${STACK_NAME}" ]; then
-            echo "DEPLOY_STACK_NAME repository variable is not set. Refusing to deploy to an unknown stack." >&2
+            echo "STACK_NAME resolved empty. Refusing to deploy to an unknown stack." >&2
+            exit 1
+          fi
+          if [ "${STACK_NAME}" = "${PROTECTED_STACK}" ]; then
+            echo "Refusing to deploy this template onto the protected live stack '${PROTECTED_STACK}'." >&2
+            echo "This template is a subset of that stack and would delete live resources." >&2
             exit 1
           fi
           echo "Deploy confirmed for stack: ${STACK_NAME}"
@@ -96,12 +105,26 @@ jobs:
         working-directory: backend/sam-app
         run: sam build
 
+      # Preview the CloudFormation change set before applying. This surfaces any
+      # resource replacements/deletions in the job log for a safe review trail.
+      - name: Preview change set
+        working-directory: backend/sam-app
+        continue-on-error: true
+        run: |
+          sam deploy \
+            --stack-name "${STACK_NAME}" \
+            --region "${AWS_REGION}" \
+            --capabilities CAPABILITY_IAM \
+            --resolve-s3 \
+            --no-execute-changeset \
+            --no-fail-on-empty-changeset
+
       - name: Deploy SAM application
         working-directory: backend/sam-app
         run: |
           sam deploy \
-            --stack-name ${{ env.STACK_NAME }} \
-            --region ${{ env.AWS_REGION }} \
+            --stack-name "${STACK_NAME}" \
+            --region "${AWS_REGION}" \
             --capabilities CAPABILITY_IAM \
             --resolve-s3 \
             --no-confirm-changeset \
