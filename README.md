@@ -344,11 +344,61 @@ aws sts get-caller-identity   # confirm connected to your account
 
 ## 3.3 Deploy Infrastructure
 
+There are two ways to deploy: the automated GitHub Actions pipeline
+(recommended) or a manual SAM deploy from your machine.
+
+### 3.3.1 Automated deploy — GitHub Actions (recommended)
+
+Deployment runs through `.github/workflows/deploy.yml`, which authenticates to
+AWS with GitHub OIDC (no long-lived access keys). It builds and deploys the SAM
+backend, seeds products, builds the React frontend, syncs it to S3, and
+invalidates CloudFront.
+
+The workflow is **manual and guarded** by design:
+
+- It runs only via **Actions → Deploy PedalWorks → Run workflow**, and you must
+  type `deploy` to confirm.
+- It deploys to a dedicated **`pedalworks-app`** stack (override with the
+  `DEPLOY_STACK_NAME` repository variable). It refuses to target the live
+  `pedalworks-fixed` stack, so a mismatched template cannot delete live
+  resources.
+- A change-set preview step logs the planned changes before they are applied.
+
+**One-time setup:**
+
+1. Deploy the OIDC deploy role (defined as code):
+
+   ```bash
+   aws cloudformation deploy \
+     --template-file backend/oidc/github-deploy-role.yaml \
+     --stack-name pedalworks-github-oidc \
+     --capabilities CAPABILITY_NAMED_IAM \
+     --region us-east-1
+   ```
+
+2. Copy the role ARN from the stack output:
+
+   ```bash
+   aws cloudformation describe-stacks \
+     --stack-name pedalworks-github-oidc \
+     --region us-east-1 \
+     --query "Stacks[0].Outputs[?OutputKey=='DeployRoleArn'].OutputValue" \
+     --output text
+   ```
+
+3. In the repo, go to **Settings → Secrets and variables → Actions** and add a
+   secret named `AWS_ROLE_ARN` set to that ARN. Optionally add the
+   `DEPLOY_STACK_NAME` and `VITE_APP_S3_BUCKET_URL` variables.
+
+See `backend/oidc/README.md` for details on the role and its scope.
+
+### 3.3.2 Manual deploy — AWS SAM CLI
+
 **1. Clone the repository**
 
 ```bash
-git clone https://github.com/emmanuelfornah/bike-app.git
-cd pedalworks
+git clone https://github.com/emmanuelfornah/pedalworks-serverless-microservices.git
+cd pedalworks-serverless-microservices
 ```
 
 **2. First deploy — guided setup**
@@ -359,10 +409,10 @@ sam build
 sam deploy --guided
 
 # Answer the prompts:
-# Stack Name:                    sam-app
+# Stack Name:                    pedalworks-app   (use a dedicated stack, not pedalworks-fixed)
 # AWS Region:                    us-east-1
-# Confirm changes before deploy: n
-# Allow SAM CLI IAM role:        n
+# Confirm changes before deploy: y
+# Allow SAM CLI IAM role:        y
 # Save arguments to file:        y  (creates samconfig.toml)
 ```
 
