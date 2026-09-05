@@ -4,7 +4,10 @@ import axios from "axios";
 import App from "../App";
 import Products from "../components/Products";
 
-vi.mock("axios");
+// Mock axios with an explicit shape so axios.get is always a defined mock fn
+vi.mock("axios", () => ({
+  default: { get: vi.fn(), post: vi.fn() },
+}));
 
 // Default: the products API returns an empty catalog unless a test overrides it
 axios.get.mockResolvedValue({ data: [] });

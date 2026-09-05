@@ -62,5 +62,6 @@ jobs:
         working-directory: backend/sam-app
         run: >-
           sam deploy
+          --resolve-s3
           --no-confirm-changeset
           --no-fail-on-empty-changeset
