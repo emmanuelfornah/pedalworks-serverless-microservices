@@ -6,24 +6,24 @@ TABLE_NAME = "Products"
 products = [
     {
         "id": "1",
-        "product_name": "mountain bike",
-        "price": Decimal("899.99"),
+        "product_name": "bike pedals",
+        "price": Decimal("49.99"),
         "inventory_count": 10,
-        "image_url": "mountain-bike.jpg",
+        "image_url": "pedals.jpeg",
     },
     {
         "id": "2",
-        "product_name": "road bike",
-        "price": Decimal("749.99"),
+        "product_name": "bike seat",
+        "price": Decimal("79.99"),
         "inventory_count": 8,
-        "image_url": "road-bike.jpg",
+        "image_url": "seat.jpeg",
     },
     {
         "id": "3",
-        "product_name": "bike helmet",
-        "price": Decimal("59.99"),
+        "product_name": "bike bell",
+        "price": Decimal("24.99"),
         "inventory_count": 25,
-        "image_url": "bike-helmet.jpg",
+        "image_url": "bell.jpeg",
     },
 ]
 

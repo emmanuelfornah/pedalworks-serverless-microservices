@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { Link, Routes, Route } from 'react-router-dom';
 
 const API_GATEWAY_BASE_URL = import.meta.env.VITE_API_GATEWAY_URL;
-const S3_BUCKET_URL = import.meta.env.VITE_APP_S3_BUCKET_URL;
+const IMAGE_BASE_URL =
+  import.meta.env.VITE_APP_S3_BUCKET_URL || '/images';
 
 const Products = () => {
   const [productsList, setProductsList] = useState([]);
@@ -94,7 +95,7 @@ const Products = () => {
             productsList.map((product, idx) => (
               <div key={idx} className="product-item">
                 <img
-                  src={`${S3_BUCKET_URL}/${product.image_url}`}
+                  src={`${IMAGE_BASE_URL}/${product.image_url}`}
                   alt={product.product_name}
                   height={"200px"}
                 />
