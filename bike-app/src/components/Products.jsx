@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from 'react-router-dom';
-import { Link, Routes, Route } from 'react-router-dom';
 
 const API_GATEWAY_BASE_URL = import.meta.env.VITE_API_GATEWAY_URL;
 const S3_BUCKET_URL = import.meta.env.VITE_APP_S3_BUCKET_URL;

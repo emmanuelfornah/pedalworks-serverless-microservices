@@ -1,7 +1,13 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import axios from "axios";
 import App from "../App";
 import Products from "../components/Products";
+
+vi.mock("axios");
+
+// Default: the products API returns an empty catalog unless a test overrides it
+axios.get.mockResolvedValue({ data: [] });
 
 describe("Renders main page correctly", async () => {
   afterEach(() => {
@@ -51,11 +57,20 @@ describe("Renders main page correctly", async () => {
   });
 
   it("Should show 3 products", async () => {
-    // Setup
-    const { container } = await render(<Products />);
-    const products = container.getElementsByTagName("td");
+    // Setup — mock the products API response
+    axios.get.mockResolvedValue({
+      data: [
+        { id: "1", product_name: "wheel", price: "179.00", image_url: "images/wheel.jpeg" },
+        { id: "2", product_name: "chain", price: "35.00", image_url: "images/chain.jpeg" },
+        { id: "3", product_name: "seat", price: "89.00", image_url: "images/seat.jpeg" },
+      ],
+    });
 
-    // Expectations
-    expect(products.length).toBe(3);
+    const { container } = render(<Products />);
+
+    // Wait for the mocked API response to render the 3 products
+    await waitFor(() => {
+      expect(container.getElementsByClassName("product-item").length).toBe(3);
+    });
   });
 });
