@@ -5,6 +5,12 @@
 
 **Emmanuel Fornah** · Dallas, TX · March 2026
 
+> **Project status.** This repository implements the Products and Orders
+> services (React/Vite frontend, API Gateway, two Python Lambdas, DynamoDB,
+> S3 + CloudFront hosting, SAM IaC, and a CI/CD pipeline). Sections 1 and 2
+> also describe the broader target design; features not yet built are labeled
+> *planned* and listed in the [Roadmap](#39-roadmap).
+
 ---
 
 ## Table of Contents
@@ -48,20 +54,23 @@ The company's website was originally built as a monolithic Django application ru
 
 ## 1.4 The Solution — Serverless Microservices
 
-The monolithic application was decomposed into three independent microservices, each aligned to a distinct business capability. Each microservice owns its own data store, is deployed independently, and scales automatically.
+The design decomposes the storefront into independent services, each aligned to
+a business capability with its own data store. The table below shows the target
+design and what is implemented in this repository today.
 
-| Microservice | Endpoints | Data Store | Business Use Cases |
+| Service | Endpoints | Data Store | Status |
 |---|---|---|---|
-| Products | `GET /get_products` | DynamoDB `Products` | Customer: browse product catalog |
-| Orders | `GET /orders` · `GET /orders/{id}` · `POST /orders` | DynamoDB `Orders` | Customer: submit orders · Customer: view order history · Employee: review orders |
-| Inventory | `POST /create-report` | DynamoDB `Inventory` | Employee: generate low-inventory email report |
+| Products | `GET /get_products` | DynamoDB `Products` | **Implemented** |
+| Orders | `POST /orders` | DynamoDB `Orders` | **Implemented** |
+| Orders (history) | `GET /orders` · `GET /orders/{id}` | DynamoDB `Orders` | Planned |
+| Inventory report | `POST /create-report` | DynamoDB `Inventory` | Planned |
 
 ## 1.5 From Monolith to Microservices — Comparison
 
 | Original Monolith (Django + RDS) | Refactored Architecture (Serverless) |
 |---|---|
-| AWS Elastic Beanstalk | Amazon S3 (React frontend — static hosting) |
-| Django MVC monolith (Python) | 3 independent Lambda functions (Python 3.12) |
+| AWS Elastic Beanstalk | Amazon S3 + CloudFront (React frontend) |
+| Django MVC monolith (Python) | Independent Lambda functions (Python 3.12) |
 | Amazon RDS (PostgreSQL / relational) | Amazon DynamoDB (NoSQL — one table per service) |
 | Single deployment unit for all features | Independent deploy per microservice via AWS SAM |
 | Manual server capacity planning | Automatic Lambda scaling — pay per invocation |
@@ -69,14 +78,16 @@ The monolithic application was decomposed into three independent microservices, 
 | Orders + Order_Items relational join | Single Orders DynamoDB document with nested `order_items` list |
 | One failure affects all features | Fault isolation — inventory failure cannot affect storefront |
 
-## 1.6 Business Outcomes
+## 1.6 Design Benefits
 
-- **Fault isolation** — a bug in the inventory report pipeline cannot take down the product catalog or order submission
-- **Independent scaling** — the Products service handles peak customer traffic without scaling the inventory service
-- **Zero database administration** — DynamoDB is fully managed with no patching, backups, or schema migrations
-- **Faster deployments** — each microservice deploys in under 5 minutes via AWS SAM without touching other services
-- **Lower operational cost** — Lambda charges only for actual invocations, no idle server costs
-- **Developer velocity** — Python developers write function handlers without configuring or maintaining infrastructure
+The serverless approach delivers these properties for the implemented services,
+and the same pattern extends to the planned ones:
+
+- **Fault isolation** — each function deploys and fails independently, so one service cannot take down another
+- **Independent scaling** — Lambda scales per function based on its own demand
+- **Zero database administration** — DynamoDB is fully managed, no patching or schema migrations
+- **Deploy as code** — AWS SAM defines the infrastructure; CI/CD deploys via GitHub OIDC
+- **Lower operational cost** — Lambda charges per invocation, no idle server cost
 
 ---
 
@@ -84,60 +95,70 @@ The monolithic application was decomposed into three independent microservices, 
 
 ## 2.1 System Architecture
 
-The application follows a serverless microservices pattern. The React frontend communicates exclusively through Amazon API Gateway. Each API endpoint invokes an independent Lambda function that reads from or writes to its own DynamoDB table. Authentication is handled by Amazon Cognito. The inventory report pipeline is orchestrated by AWS Step Functions. All services are instrumented with AWS X-Ray for distributed tracing.
+The application follows a serverless pattern. A React/Vite single-page app is
+hosted on a private S3 bucket behind CloudFront and talks to Amazon API Gateway.
+Each endpoint invokes an independent Python Lambda that reads from or writes to a
+DynamoDB table. Infrastructure is defined and deployed as code with AWS SAM.
+
+**What this repository implements and deploys:**
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                           AWS Cloud                                  │
-│                                                                      │
-│  Customer ──►  Amazon S3 (React/Vite frontend)                       │
-│  Employee ──►        │                                               │
-│                      ▼                                               │
-│             Amazon API Gateway — BikeAPI (REST)                      │
-│             ┌────────────────────────────────────┐                   │
-│             │  GET  /get_products                 │  ── public        │
-│             │  POST /orders                       │  ── public        │
-│             │  GET  /orders                       │  ── Cognito auth  │
-│             │  GET  /orders/{order_id}            │  ── Cognito auth  │
-│             │  POST /create-report                │  ── Cognito auth  │
-│             └────────────┬───────────────────────┘                   │
-│                          │                                           │
-│        ┌─────────────────┼─────────────────┐                         │
-│        ▼                 ▼                 ▼                         │
-│   GetProducts       CreateOrder       CreateReport                   │
-│   Lambda            Lambda            Lambda                         │
-│        │                 │                 │                          │
-│   DynamoDB          DynamoDB        Step Functions                    │
-│   Products          Orders          ├── GenerateReportData           │
-│                                     ├── GenerateHTML (parallel)      │
-│                                     ├── GeneratePresignedURL         │
-│                                     └── SNS ──► SES ──► Email        │
-│                                                                      │
-│  Amazon Cognito ── User Pool (bike_app) ── Hosted UI                 │
-│  AWS X-Ray ─────── Active tracing on all Lambda + Step Functions     │
-└──────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                          AWS Cloud                             │
+│                                                                │
+│  Browser ──►  CloudFront ──►  S3 (private, OAC)  [React/Vite]  │
+│                   │                                            │
+│                   ▼                                            │
+│          Amazon API Gateway — BikeAPI (REST, CORS)             │
+│          ┌───────────────────────────────┐                     │
+│          │  GET  /get_products           │  ── public          │
+│          │  POST /orders                 │  ── public          │
+│          └───────────────┬───────────────┘                     │
+│                          │                                     │
+│        ┌─────────────────┴─────────────────┐                   │
+│        ▼                                   ▼                   │
+│   GetProducts Lambda                  CreateOrder Lambda        │
+│        │                                   │                   │
+│   DynamoDB: Products                 DynamoDB: Orders           │
+│                                                                │
+│  Amazon Cognito — User Pool + App Client (provisioned)         │
+└────────────────────────────────────────────────────────────────┘
 ```
+
+Each Lambda has its own least-privilege IAM role (Products = DynamoDB read;
+Orders = DynamoDB write). A Cognito User Pool and app client are provisioned by
+the template for future authenticated endpoints; the current endpoints are
+public.
+
+> **Scope note.** Sections 2.3 onward marked *(planned)* describe the intended
+> full design (order history, an inventory-report pipeline with Step Functions
+> and SNS/SES, Cognito-protected endpoints, X-Ray tracing). Those are **not**
+> implemented in this repository — the code here is the Products and Orders
+> services plus the frontend and its hosting infrastructure.
 
 ## 2.2 Tech Stack
 
+Implemented in this repository:
+
 | Layer | Technology | Purpose |
 |---|---|---|
-| Frontend | React 18 + Vite + JavaScript | Customer-facing SPA — product catalog, order form, order history |
-| API Layer | Amazon API Gateway (REST) | BikeAPI — single entry point, CORS, Cognito authorizer |
-| Compute | AWS Lambda (Python 3.12) | Serverless function per microservice endpoint |
-| Database | Amazon DynamoDB | One table per microservice — Products, Orders, Inventory |
-| Authentication | Amazon Cognito | User Pool + JWT tokens — protects employee-only endpoints |
-| Workflow | AWS Step Functions | Inventory report pipeline — parallel state machine |
-| Messaging | Amazon SNS + SES | Email delivery for inventory reports |
-| Storage | Amazon S3 | Product images + HTML inventory reports |
-| Tracing | AWS X-Ray | Distributed tracing across API Gateway + Lambda + Step Functions |
-| IaC | AWS SAM (`template.yaml`) | All infrastructure defined and deployed as code |
-| Source Control | AWS CodeCommit + GitHub | Version control and portfolio hosting |
+| Frontend | React 19 + Vite + JavaScript | Product catalog and order form (SPA) |
+| API Layer | Amazon API Gateway (REST) | BikeAPI — single entry point with CORS |
+| Compute | AWS Lambda (Python 3.12) | One function per endpoint — GetProducts, CreateOrder |
+| Database | Amazon DynamoDB | Products and Orders tables |
+| Hosting | Amazon S3 + CloudFront | Private bucket (OAC) fronted by CloudFront |
+| Auth (provisioned) | Amazon Cognito | User Pool + app client defined for future protected endpoints |
+| IaC | AWS SAM (`template.yaml`) | Infrastructure defined and deployed as code |
+| CI/CD | GitHub Actions + OIDC | Lint/test gate; guarded, manual deploy (no static keys) |
 | Testing | Vitest | React component unit tests |
 
-## 2.3 Microservices — Detailed Design
+Planned (see roadmap, not in this repo): order history endpoints, an inventory
+report pipeline (Step Functions + SNS/SES), Cognito-protected endpoints, and
+X-Ray tracing.
 
-### Products Microservice — `GET /get_products`
+## 2.3 Services — Detailed Design (implemented)
+
+### Products Service — `GET /get_products`
 
 | | |
 |---|---|
@@ -145,111 +166,62 @@ The application follows a serverless microservices pattern. The React frontend c
 | Endpoint | `GET /get_products` |
 | Auth | None — public endpoint |
 | DynamoDB Table | `Products` — partition key: `id` (String) |
-| Attributes | `id`, `product_name`, `description`, `price`, `product_group`, `image_url` |
+| Attributes | `id`, `product_name`, `description`, `price`, `inventory_count`, `image_url` |
+| Response | `{ "products": [...], "count": N }` |
 | CORS | `Access-Control-Allow-Origin: *` in Lambda return |
-| X-Ray | Active tracing — DynamoDB scan recorded as subsegment |
 
-```python
-def lambda_handler(event, context):
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('Products')
-    response = table.scan()
-    items = response['Items']
-    while 'LastEvaluatedKey' in response:
-        response = table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
-        items.extend(response['Items'])
-    return {
-        'statusCode': 200,
-        'headers': {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-        },
-        'body': json.dumps(items)
-    }
-```
+The handler scans the Products table (paginating on `LastEvaluatedKey`) and
+serializes DynamoDB `Decimal` values to JSON numbers. See
+`handlers/get_products/get_products.py` for the implementation.
 
-### Orders Microservice — `GET /orders` | `GET /orders/{id}` | `POST /orders`
+### Orders Service — `POST /orders`
 
 | | |
 |---|---|
-| Handlers | `get_orders.py` / `get_order.py` / `create_order.py` |
-| Auth | `GET /orders` + `GET /orders/{id}`: Cognito JWT required · `POST /orders`: public |
+| Handler | `handlers/create_order/create_order.py` |
+| Endpoint | `POST /orders` |
+| Auth | None — public endpoint |
 | DynamoDB Table | `Orders` — partition key: `id` (String) |
-| Key design decision | `order_items` stored as a DynamoDB List attribute — replaces the Orders + Order_Items relational join from the original RDS schema |
-| Order ID | `uuid.uuid4()` — unique per order, returned to frontend on creation |
-| CORS | API Gateway BikeAPI Cors config + Lambda headers — handles OPTIONS preflight for POST |
+| Design | `order_items` stored as a DynamoDB List attribute — one document per order, no relational join |
+| Order ID | `uuid.uuid4()` — returned to the frontend on creation |
+| CORS | API Gateway `Cors` config (OPTIONS preflight) + Lambda headers |
 
-DynamoDB order document structure:
+The handler accepts a `{ product_name: { id, quantity, price } }` map, filters
+zero-quantity items, computes the total, and writes one order document:
 
 ```json
 {
     "id": "uuid-generated-order-id",
-    "total_amount": "358.00",
-    "order_date_time": "2026-03-14T15:22:00Z",
+    "total_amount": "393.00",
+    "order_date_time": "2026-09-05T13:00:00+00:00",
     "order_items": [
-        { "product_name": "wheel",  "product_id": "8", "quantity": "2", "amount": "179.00" },
-        { "product_name": "chain",  "product_id": "3", "quantity": "1", "amount": "35.00"  }
+        { "product_name": "wheel", "product_id": "8", "quantity": "2", "amount": "358.00" },
+        { "product_name": "chain", "product_id": "4", "quantity": "1", "amount": "35.00"  }
     ]
 }
 ```
 
-### Inventory Report Microservice — `POST /create-report`
+## 2.4 Authentication — Amazon Cognito (provisioned, not yet enforced)
 
-The most complex microservice — triggers an AWS Step Functions state machine that orchestrates four Lambda functions in sequence, with two running in parallel.
-
-**Step Functions State Machine — execution flow:**
-
-```
-StartAt: GenerateReportData
-  GenerateReportData  ──► queries DynamoDB Inventory table
-        │
-        ▼
-  Parallel state (concurrent branches)
-  ├── GenerateHTML          ──► builds HTML report, uploads to S3 report bucket
-  └── GeneratePresignedURL  ──► creates 5-minute signed URL for the report
-        │
-        ▼
-  TriggerSNS  ──► publishes presigned URL to SNS topic ──► SES ──► employee email
-```
+The SAM template provisions a Cognito User Pool and app client so protected
+endpoints can be added later. The current endpoints (`GET /get_products`,
+`POST /orders`) are public, and the frontend does not yet implement a sign-in
+flow. Enforcing Cognito on employee-only endpoints (e.g. order history and the
+inventory report) is part of the roadmap below.
 
 | | |
 |---|---|
-| Auth | Cognito JWT required — employee-only endpoint |
-| Lambda: CreateReport | Starts Step Functions execution — returns `executionArn` immediately (async) |
-| Lambda: GenerateReportData | Scans DynamoDB Inventory table — passes data to parallel branch |
-| Lambda: GenerateHTML | Builds HTML report from inventory data — uploads to S3 report bucket |
-| Lambda: GeneratePresignedURL | Generates S3 presigned URL (300-second expiry) |
-| SNS Topic | `EmailReport` — email subscriber confirmed on first deploy |
-| Why Parallel state | HTML generation and URL creation are independent — running concurrently cuts end-to-end latency |
-
-## 2.4 Authentication — Amazon Cognito
-
-Amazon Cognito User Pool (`bike_app`) handles employee authentication. The frontend uses the Cognito Hosted UI for sign-in. After successful authentication, the `id_token` is stored in the browser and attached to protected API requests.
-
-```
-Employee ──► Cognito Hosted UI ──► Sign in with email + password
-          ──► Redirected back with id_token in URL fragment
-          ──► Frontend stores token
-          ──► API request: Authorization: Bearer <id_token>
-          ──► API Gateway CognitoAuthorizer validates token
-          ──► Lambda receives verified claims
-```
-
-| | |
-|---|---|
-| Protected endpoints | `GET /orders` · `GET /orders/{id}` · `POST /create-report` |
-| Public endpoints | `GET /get_products` · `POST /orders` |
-
-> **Note:** The Implicit Grant flow is used in this implementation. For production, AWS recommends Authorization Code Grant with PKCE for single-page applications. The Implicit Grant exposes tokens in the URL fragment and is used here for demonstration purposes only.
+| Public endpoints (implemented) | `GET /get_products` · `POST /orders` |
+| Planned protected endpoints | `GET /orders` · `GET /orders/{id}` · `POST /create-report` |
 
 ## 2.5 CORS Configuration
 
-Two-layer CORS is required because browsers send an OPTIONS preflight request before POST requests to a different domain.
+Two-layer CORS is required because browsers send an OPTIONS preflight request before POST requests to a different origin.
 
 | Layer | What it handles |
 |---|---|
-| Lambda return headers | Actual GET and POST responses — required on every Lambda handler |
-| BikeAPI SAM `Cors:` block | OPTIONS preflight responses — required for `POST /orders` and `POST /create-report` |
+| Lambda return headers | Actual GET and POST responses — set on each Lambda handler |
+| BikeAPI SAM `Cors:` block | OPTIONS preflight responses — required for `POST /orders` |
 
 ```yaml
 # SAM template — BikeAPI resource
@@ -263,25 +235,22 @@ BikeAPI:
       AllowOrigin: "'*'"
 ```
 
-## 2.6 Observability — AWS X-Ray
+## 2.6 Observability
 
-X-Ray active tracing is enabled on all Lambda functions and the Step Functions state machine. The API Gateway Prod stage also has X-Ray tracing enabled. Every request generates a trace showing end-to-end latency from API Gateway through Lambda to DynamoDB.
-
-- **GetProducts trace:** API Gateway → Lambda → DynamoDB scan (~15ms average)
-- **CreateOrder trace:** API Gateway → Lambda → DynamoDB write
-- **CreateReport trace:** API Gateway → Lambda → Step Functions → 4 Lambda invocations → SNS
-- **X-Ray identified a production bug:** `NameError` on `report_dat` (should be `report_data`) in `generate_report_data.py` line 20 — pinpointed without log searching
+Lambda functions log to Amazon CloudWatch Logs by default, which is how the
+deployed CreateOrder import error was diagnosed during this work. AWS X-Ray
+distributed tracing is part of the roadmap and is not enabled in this template.
 
 ## 2.7 Architecture Decision Records (Summary)
 
 | Decision | Choice Made | Rationale |
 |---|---|---|
-| Decomposition strategy | By business capability | Products / Orders / Inventory map to team ownership and failure boundaries |
-| Database | DynamoDB over RDS | No SQL experience on team; no schema management; Orders+Order_Items join replaced by DynamoDB list attribute |
-| IaC | AWS SAM over Terraform | Native to serverless stack; `sam build` + `sam deploy` = entire workflow; `sam local invoke` for local testing |
-| Report pipeline | Step Functions over single Lambda | Independent retry per step; Parallel state reduces latency; X-Ray traces each execution with full history |
-| CORS approach | Two-layer (Lambda + API GW) | Lambda headers handle responses; API Gateway Cors block handles OPTIONS preflight for POST |
-| Report delivery | S3 presigned URL via SNS | Report bucket stays private; 300-second URL limits exposure; async delivery via SNS |
+| Compute | Lambda per endpoint | Independent deploy and scaling; fault isolation per function |
+| Database | DynamoDB over RDS | No schema management; order stored as one document with an `order_items` list instead of a relational join |
+| IaC | AWS SAM | Native to the serverless stack; `sam build` + `sam deploy` is the whole workflow |
+| Frontend hosting | Private S3 + CloudFront (OAC) | Bucket stays private; CloudFront serves the SPA over HTTPS with SPA error routing |
+| CORS approach | Two-layer (Lambda + API GW) | Lambda headers handle responses; the API Gateway `Cors` block handles OPTIONS preflight for POST |
+| CI/CD auth | GitHub OIDC | Short-lived credentials, no long-lived AWS keys stored in GitHub |
 
 ---
 
@@ -290,44 +259,39 @@ X-Ray active tracing is enabled on all Lambda functions and the Step Functions s
 ## 3.1 Repository Structure
 
 ```
-pedalworks/
+pedalworks-serverless-microservices/
 ├── bike-app/                            # React/Vite frontend
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── Products.jsx             # GET /get_products → renders catalog
+│   │   │   ├── Products.jsx             # GET /get_products + POST /orders
 │   │   │   ├── Services.jsx             # Static services listing
-│   │   │   ├── Sidebar.jsx              # Navigation
-│   │   │   ├── OrderHistory.jsx         # GET /orders (Cognito auth)
-│   │   │   └── OrderDetails.jsx         # GET /orders/{id} (Cognito auth)
-│   │   └── App.jsx                      # Root + Cognito auth flow
-│   ├── src/__tests__/                   # Vitest unit tests
-│   ├── .env.example                     # Environment variable template
+│   │   │   └── Sidebar.jsx              # Store info / banner controls
+│   │   ├── App.jsx                      # Root component
+│   │   └── __tests__/                   # Vitest unit tests
+│   ├── .env.example
+│   ├── eslint.config.js                 # ESLint 9 flat config
 │   ├── vite.config.js
 │   └── package.json
 │
 ├── backend/
 │   ├── sam-app/
-│   │   ├── template.yaml                # All AWS infrastructure as code
-│   │   ├── samconfig.toml               # Saved SAM deploy configuration
+│   │   ├── template.yaml                # AWS infrastructure as code (SAM)
+│   │   ├── samconfig.toml               # SAM deploy configuration
+│   │   ├── seed_products.py             # Seeds the DynamoDB Products table
 │   │   └── handlers/
 │   │       ├── get_products/            # Lambda: GET /get_products
-│   │       ├── get_orders/              # Lambda: GET /orders
-│   │       ├── get_order/               # Lambda: GET /orders/{order_id}
-│   │       ├── create_order/            # Lambda: POST /orders
-│   │       ├── create_report/           # Lambda: POST /create-report
-│   │       ├── generate_report_data/    # Step Functions: query Inventory
-│   │       ├── generate_html/           # Step Functions: build HTML report
-│   │       └── generate_presigned_url/  # Step Functions: S3 presigned URL
+│   │       └── create_order/            # Lambda: POST /orders
+│   ├── oidc/
+│   │   └── github-deploy-role.yaml      # GitHub OIDC deploy role (IaC)
 │   └── utils/
-│       ├── create_products/             # Seeds DynamoDB Products table
-│       ├── create_orders/               # Seeds DynamoDB Orders table
-│       ├── create_inventory/            # Seeds DynamoDB Inventory table
-│       └── s3/                          # Creates S3 image + report buckets
+│       ├── create_products/             # Alternate product seed util
+│       └── s3/                          # Creates an S3 image bucket
 │
-└── docs/
-    ├── architecture.png
-    ├── xray-service-map.png
-    └── architecture-decisions.md
+├── .github/workflows/
+│   ├── ci.yml                           # Lint + test + template validation
+│   └── deploy.yml                       # Guarded manual deploy (OIDC)
+│
+└── docs/                                # Screenshots and notes
 ```
 
 ## 3.2 Prerequisites
@@ -437,12 +401,17 @@ CognitoUserPoolDomain   → VITE_COGNITO_AUTH_URL (add https:// prefix)
 
 ## 3.4 Seed Data
 
+The deploy pipeline seeds products automatically. To seed manually:
+
 ```bash
-cd backend/utils/create_products  && python create_products.py
-cd ../create_orders               && python create_orders.py
-cd ../create_inventory            && python create_inventory.py
-cd ../s3                          && python create_images_bucket.py
-cd ../s3                          && python create_report_bucket.py
+# From the SAM app (matches what CI runs)
+cd backend/sam-app && python seed_products.py
+
+# Or via the standalone util
+cd backend/utils/create_products && python create_products.py
+
+# Create a public S3 bucket for product images (optional)
+cd backend/utils/s3 && python create_images_bucket.py
 ```
 
 ## 3.5 Configure and Run Frontend
@@ -451,45 +420,36 @@ cd ../s3                          && python create_report_bucket.py
 cd bike-app
 cp .env.example .env
 
-# Edit .env — paste values from sam deploy output:
+# Edit .env — paste values from the sam deploy output:
 VITE_API_GATEWAY_URL=https://UNIQUE-ID.execute-api.us-east-1.amazonaws.com/Prod
-VITE_APP_S3_BUCKET_URL=https://images-ACCOUNT-DATE.s3.us-east-1.amazonaws.com
-VITE_COGNITO_AUTH_URL=https://YOUR-PREFIX.auth.us-east-1.amazoncognito.com
-VITE_CLIENT_ID=your-cognito-app-client-id
-VITE_REDIRECT_URI=http://localhost:5173/
+VITE_APP_S3_BUCKET_URL=https://your-images-bucket.s3.us-east-1.amazonaws.com
 
 npm install
 npm run dev        # starts at http://localhost:5173
 ```
 
+If `VITE_APP_S3_BUCKET_URL` is omitted, the app falls back to the local
+`public/images` directory, so it runs without any S3 bucket.
+
 ## 3.6 API Reference
+
+Implemented endpoints:
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| `GET` | `/get_products` | None | Returns full product catalog from DynamoDB Products table |
-| `POST` | `/orders` | None | Creates a new order — returns `order_id` |
-| `GET` | `/orders` | Cognito JWT | Returns all orders (employee: full history) |
-| `GET` | `/orders/{order_id}` | Cognito JWT | Returns details for a specific order |
-| `POST` | `/create-report` | Cognito JWT | Triggers inventory report state machine — returns `executionArn` |
+| `GET` | `/get_products` | None | Returns the product catalog as `{ products, count }` |
+| `POST` | `/orders` | None | Creates an order — returns `order_id` and `total_amount` |
 
 **Sample Requests**
 
 ```bash
-# Get products (no auth)
-curl https://{api-id}.execute-api.us-east-1.amazonaws.com/Prod/get_products
+# Get products
+curl https://{api-id}.execute-api.us-east-1.amazonaws.com/Prod/get_products/
 
-# Create order (no auth)
+# Create order
 curl -X POST https://{api-id}.execute-api.us-east-1.amazonaws.com/Prod/orders \
   -H "Content-Type: application/json" \
   -d '{"wheel": {"id": 8, "quantity": 2, "price": "179.00"}}'
-
-# Get order history (Cognito auth required)
-curl https://{api-id}.execute-api.us-east-1.amazonaws.com/Prod/orders \
-  -H "Authorization: Bearer {id_token}"
-
-# Trigger inventory report (Cognito auth required)
-curl -X POST https://{api-id}.execute-api.us-east-1.amazonaws.com/Prod/create-report \
-  -H "Authorization: Bearer {id_token}"
 ```
 
 ## 3.7 Running Tests
@@ -505,13 +465,24 @@ npm run lint                    # ESLint check
 
 | Error | Cause | Fix |
 |---|---|---|
-| CORS error on `GET /get_products` | Missing headers in Lambda return | Add `Access-Control-Allow-Origin: *` to response |
-| CORS error on `POST /orders` | Missing API GW CORS config | Add `Cors:` block to BikeAPI in `template.yaml` |
-| `{"message": "Unauthorized"}` | Expired or missing Cognito token | Re-authenticate via Employee Login |
-| Products not displaying | Wrong `VITE_API_GATEWAY_URL` in `.env` | Copy URL from `sam deploy` MicroserviceApi output |
-| `sam deploy` rollback | `LambdaApplicationRoleSam` not found | Confirm role exists in IAM console |
-| State machine fails | `report_dat` typo in `generate_report_data.py` line 20 | Fix to `report_data` — identified via X-Ray Exceptions tab |
-| Images not loading | Wrong `VITE_APP_S3_BUCKET_URL` | Check S3 console for bucket name `images-{account}-{date}` |
+| CORS error on `POST /orders` | Missing API Gateway CORS config | Ensure the `Cors:` block exists on BikeAPI in `template.yaml` |
+| `POST /orders` returns 502 | Lambda import/runtime error | Check the function's CloudWatch logs for the traceback |
+| Products not displaying | Wrong `VITE_API_GATEWAY_URL` in `.env` | Copy the URL from the `sam deploy` `MicroserviceApi` output |
+| Images not loading | Wrong or unset `VITE_APP_S3_BUCKET_URL` | Set the bucket URL, or unset it to use `public/images` locally |
+
+## 3.9 Roadmap
+
+The following are designed but not yet implemented in this repository:
+
+- **Order history** — `GET /orders` and `GET /orders/{id}` with matching
+  frontend views
+- **Cognito-protected endpoints** — enforce the provisioned User Pool on
+  employee-only routes and add a sign-in flow
+- **Inventory report pipeline** — `POST /create-report` orchestrated by AWS
+  Step Functions, delivering an S3 report via SNS/SES
+- **X-Ray tracing** — distributed tracing across API Gateway, Lambda, and
+  DynamoDB
+- **Backend unit tests** — pytest + moto for the Lambda handlers
 
 ---
 
