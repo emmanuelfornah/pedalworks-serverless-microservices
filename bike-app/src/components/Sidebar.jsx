@@ -33,7 +33,7 @@ const Sidebar = ({ setBannerColor }) => {
         </p>
       </div>
       <div className="map-img-div">
-        <img src={`${imageUrl}/images/map.jpeg`} alt="" width={"130px"} />
+        <img src={`${imageUrl}/map.jpeg`} alt="" width={"130px"} />
         <a
           href="https://www.openstreetmap.org/search?query=nyc"
           target="_blank"
@@ -47,7 +47,7 @@ const Sidebar = ({ setBannerColor }) => {
           PedalWorks was founded by a group of friends who share a passion for
           bicycling and they all agree that it is always a great day to bike!
         </p>
-        <img src={`${imageUrl}/images/biking-outdoors.jpeg`} alt="" />
+        <img src={`${imageUrl}/biking-outdoors.jpeg`} alt="" />
         <div className="buttons">
           <button className="light-banner-btn" onClick={() => handleColorClick('dark')}>Dark Banner</button>
           <button className="light-banner-btn" onClick={() => handleColorClick('light')}>Light Banner</button>

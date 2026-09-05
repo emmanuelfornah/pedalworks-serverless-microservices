@@ -38,5 +38,8 @@ def lambda_handler(event, context):
             "Access-Control-Allow-Methods":
                 "GET,POST,PUT,DELETE,OPTIONS"
         },
-        "body": json.dumps(items, default=decimal_serializer)
+        "body": json.dumps(
+            {"products": items, "count": len(items)},
+            default=decimal_serializer,
+        )
     }

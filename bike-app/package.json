@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 8081",
+    "dev": "vite --port 5173",
     "test": "vitest --root src --coverage",
     "build": "vite build",
     "lint": "eslint .",

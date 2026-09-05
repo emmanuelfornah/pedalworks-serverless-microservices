@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from 'react-router-dom';
-import { Link, Routes, Route } from 'react-router-dom';
 
 const API_GATEWAY_BASE_URL = import.meta.env.VITE_API_GATEWAY_URL;
 const IMAGE_BASE_URL =
@@ -15,8 +13,16 @@ const Products = () => {
     axios
       .get(`${API_GATEWAY_BASE_URL}/get_products/`)
       .then((res) => {
-        console.log("got response from api!", res.data);
-        setProductsList(res.data);
+        // The API may return either a bare array or an object like
+        // { products: [...] }. Normalize to an array so rendering works
+        // regardless of which Lambda version is deployed.
+        const data = res.data;
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.products)
+          ? data.products
+          : [];
+        setProductsList(items);
       })
       .catch((err) => console.log(err)); // Log any errors
   }, []);
@@ -70,19 +76,35 @@ const Products = () => {
     }
   };
 
+  const [orderStatus, setOrderStatus] = useState(null);
+
   const submitHandler = (e) => {
     e.preventDefault();
-    // TODO: make a post request to backend to create a new order
-    console.log(formInfo)
-    // send to backend via a POST request
-    axios.post(`${API_GATEWAY_BASE_URL}/submit_order`, formInfo)
+
+    // Only send items with a quantity greater than zero.
+    const items = Object.entries(formInfo).filter(
+      ([, info]) => (info?.quantity || 0) > 0
+    );
+    if (items.length === 0) {
+      setOrderStatus({ type: "error", message: "Add at least one item before submitting." });
+      return;
+    }
+
+    setOrderStatus({ type: "pending", message: "Submitting order..." });
+
+    // POST /orders — payload is a map of { product_name: { id, quantity, price } }
+    axios
+      .post(`${API_GATEWAY_BASE_URL}/orders`, formInfo)
       .then((res) => {
-        console.log("got back response from api", res.data)
-        //navigate(`/lookup_order/${res.data.orderId}`)
+        const orderId = res.data?.order_id;
+        setOrderStatus({
+          type: "success",
+          message: orderId ? `Order placed! Order ID: ${orderId}` : "Order placed!",
+        });
       })
       .catch((err) => {
         console.error("Error submitting order:", err);
-        // Handle the error appropriately, e.g., display an error message
+        setOrderStatus({ type: "error", message: "Could not submit order. Please try again." });
       });
   };
 
@@ -120,6 +142,11 @@ const Products = () => {
         </div>
         <input type="submit" value="Submit" />
       </form>
+      {orderStatus && (
+        <p className={`order-status order-status-${orderStatus.type}`}>
+          {orderStatus.message}
+        </p>
+      )}
       <h3>Total Price: ${calculateTotal()}</h3>
     </div>
   );

@@ -30,6 +30,33 @@ Resources:
         ReadCapacityUnits: 3
         WriteCapacityUnits: 3
 
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Orders
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 3
+        WriteCapacityUnits: 3
+
+  # ============================================================
+  # API Gateway (explicit) - handles CORS preflight for POST
+  # ============================================================
+
+  BikeAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+
   # ============================================================
   # Lambda Execution Role
   # ============================================================
@@ -88,8 +115,65 @@ Resources:
         GetProducts:
           Type: Api
           Properties:
+            RestApiId: !Ref BikeAPI
             Path: /get_products
             Method: get
+
+  # ============================================================
+  # CreateOrder Lambda Execution Role
+  # ============================================================
+
+  CreateOrderExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+      Policies:
+        - PolicyName: CreateOrderDynamoDBWrite
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource:
+                  - !GetAtt OrdersTable.Arn
+
+        - PolicyName: LambdaLogging
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+  CreateOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: handlers/create_order/
+      Handler: create_order.lambda_handler
+      Runtime: python3.12
+      Role: !GetAtt CreateOrderExecutionRole.Arn
+      Architectures:
+        - x86_64
+      Events:
+        CreateOrder:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BikeAPI
+            Path: /orders
+            Method: post
 
   # ============================================================
   # Frontend S3 Bucket
@@ -230,15 +314,23 @@ Outputs:
 
   MicroserviceApi:
     Description: API Gateway base URL for the Prod stage
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod"
+    Value: !Sub "https://${BikeAPI}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod"
 
   EndpointForGetProducts:
     Description: GetProducts API endpoint
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/get_products/"
+    Value: !Sub "https://${BikeAPI}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/get_products/"
+
+  EndpointForCreateOrder:
+    Description: CreateOrder API endpoint
+    Value: !Sub "https://${BikeAPI}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/orders"
 
   GetProductsFunction:
     Description: GetProducts Lambda Function ARN
     Value: !GetAtt GetProductsFunction.Arn
+
+  CreateOrderFunction:
+    Description: CreateOrder Lambda Function ARN
+    Value: !GetAtt CreateOrderFunction.Arn
 
   FrontendBucketName:
     Description: S3 bucket containing the PedalWorks React frontend

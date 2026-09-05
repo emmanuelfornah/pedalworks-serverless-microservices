@@ -8,6 +8,7 @@ export default defineConfig({
     environment: "jsdom",
   },
   server: {
+    port: 5173,
     allowedHosts: ['.amazonaws.com', '.cloudfront.net']
   },
 })
