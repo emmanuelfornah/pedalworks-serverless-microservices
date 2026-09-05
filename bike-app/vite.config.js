@@ -1,14 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/absproxy/8081',
+  base: '/',
   test: {
     environment: "jsdom",
   },
   server: {
-    allowedHosts: ['.amazonaws.com', '.cloudfront.net']  // This will allow the preview amazonaws.com subdomains
+    allowedHosts: ['.amazonaws.com', '.cloudfront.net']
   },
 })
