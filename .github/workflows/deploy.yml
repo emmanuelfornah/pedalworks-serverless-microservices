@@ -31,6 +31,12 @@ permissions:
   id-token: write # required to request the GitHub OIDC token
   contents: read  # required to check out the repository
 
+# Serialize deployments: CloudFormation rejects a stack update while the
+# previous one is still in progress, so queue runs instead of overlapping.
+concurrency:
+  group: deploy-sam-app-dev
+  cancel-in-progress: false
+
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   STACK_NAME: sam-app
