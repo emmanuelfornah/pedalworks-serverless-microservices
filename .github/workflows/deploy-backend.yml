@@ -8,8 +8,9 @@ name: Deploy Backend
 #   AWS_ROLE_ARN (secret) — IAM role assumable via OIDC with permission to
 #                           deploy the SAM stack.
 #
-# First-time setup: run `sam deploy --guided` locally once (see
-# docs/DEPLOYMENT.md) so the referenced IAM role and stack exist.
+# The template creates its own least-privilege Lambda execution role, so no
+# pre-existing IAM role is needed. First-time setup: run `sam deploy --guided`
+# locally once (see docs/DEPLOYMENT.md) to create the stack.
 
 on:
   workflow_dispatch:

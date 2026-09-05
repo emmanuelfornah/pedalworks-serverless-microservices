@@ -11,9 +11,10 @@ long-lived access keys are stored in the repository.
 
 ### 1.1 Bootstrap the backend stack
 
-The SAM template references an existing IAM role (`LambdaApplicationRoleSam`)
-and saves deployment settings in `backend/sam-app/samconfig.toml`. Deploy once
-locally so the stack and role exist:
+The template is self-contained: it creates its own least-privilege Lambda
+execution role (`GetProductsExecutionRole`), so no pre-existing IAM role is
+required. Deploy once locally so the stack exists; settings are saved to
+`backend/sam-app/samconfig.toml`:
 
 ```bash
 cd backend/sam-app
@@ -22,6 +23,10 @@ sam deploy --guided
 # Stack Name: sam-app · Region: us-east-1 · Confirm changes: n
 # Allow SAM CLI IAM role creation: y · Save arguments: y
 ```
+
+> The stack creates IAM resources (the execution role), so deploys need the
+> `CAPABILITY_IAM` capability — already set in `samconfig.toml` and the
+> deploy workflow.
 
 Copy the outputs — you will need them for the frontend environment:
 
