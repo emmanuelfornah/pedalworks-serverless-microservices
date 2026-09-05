@@ -1,23 +1,14 @@
-# Deploys the PedalWorks SAM backend (backend/sam-app) to AWS.
+# PedalWorks CI/CD
 #
-# Authentication uses GitHub's OIDC provider — no long-lived AWS access keys
-# are stored in this repository. To enable deployments you need:
+# Deploys:
+#   1. AWS SAM backend infrastructure
+#   2. React/Vite frontend to private S3
+#   3. CloudFront cache invalidation
 #
-#   1. An IAM OIDC identity provider for token.actions.githubusercontent.com
-#      (one per AWS account).
-#   2. An IAM role whose trust policy allows the GitHub OIDC provider to
-#      assume it for this repository (and ideally only the dev branch), with
-#      permissions to deploy the stack (CloudFormation, Lambda, API Gateway,
-#      DynamoDB, IAM role creation, S3 for the SAM deployment bucket).
-#   3. Repository configuration (Settings > Secrets and variables > Actions):
-#      - Secret  AWS_ROLE_ARN : ARN of the IAM deploy role from step 2.
-#      - Variable AWS_REGION  : AWS region to deploy into.
-#        Defaults to us-east-1 (matches samconfig.toml) when not set.
-#
-# The stack name below matches samconfig.toml so CLI and CI deploys target
-# the same CloudFormation stack.
+# Authentication uses GitHub OIDC.
+# No long-lived AWS access keys are stored in GitHub.
 
-name: Deploy SAM Backend
+name: Deploy PedalWorks
 
 on:
   push:
@@ -25,16 +16,15 @@ on:
       - dev
     paths:
       - 'backend/sam-app/**'
+      - 'bike-app/**'
       - '.github/workflows/deploy.yml'
 
 permissions:
-  id-token: write # required to request the GitHub OIDC token
-  contents: read  # required to check out the repository
+  id-token: write
+  contents: read
 
-# Serialize deployments: CloudFormation rejects a stack update while the
-# previous one is still in progress, so queue runs instead of overlapping.
 concurrency:
-  group: deploy-sam-app-dev
+  group: deploy-pedalworks-dev
   cancel-in-progress: false
 
 env:
@@ -43,20 +33,30 @@ env:
 
 jobs:
   deploy:
-    name: Build and deploy SAM app
+    name: Build and deploy PedalWorks
     runs-on: ubuntu-latest
 
     steps:
-      # Third-party actions are pinned to commit SHAs because this job holds
-      # an OIDC token that can assume the AWS deploy role.
+      # ----------------------------------------------------------
+      # Source
+      # ----------------------------------------------------------
+
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # ----------------------------------------------------------
+      # AWS Authentication - GitHub OIDC
+      # ----------------------------------------------------------
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      # ----------------------------------------------------------
+      # Backend - AWS SAM
+      # ----------------------------------------------------------
 
       - name: Set up Python 3.12
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -80,3 +80,84 @@ jobs:
             --resolve-s3 \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset
+
+      # ----------------------------------------------------------
+      # Read deployed infrastructure values from CloudFormation
+      # ----------------------------------------------------------
+
+      - name: Get deployment outputs
+        id: infrastructure
+        shell: bash
+        run: |
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --region "${AWS_REGION}" \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
+            --output text)
+
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --region "${AWS_REGION}" \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+            --output text)
+
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --region "${AWS_REGION}" \
+            --query "Stacks[0].Outputs[?OutputKey=='MicroserviceApi'].OutputValue" \
+            --output text)
+
+          echo "frontend_bucket=${FRONTEND_BUCKET}" >> "$GITHUB_OUTPUT"
+          echo "distribution_id=${DISTRIBUTION_ID}" >> "$GITHUB_OUTPUT"
+          echo "api_url=${API_URL}" >> "$GITHUB_OUTPUT"
+
+      # ----------------------------------------------------------
+      # Frontend - React/Vite
+      # ----------------------------------------------------------
+
+      - name: Set up Node.js
+        uses: actions/setup-node@1e60f620b9541d6e15edce9d6804a5c35e9c2127 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: bike-app/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: bike-app
+        run: npm ci
+
+      - name: Build React frontend
+        working-directory: bike-app
+        env:
+          VITE_API_GATEWAY_URL: ${{ steps.infrastructure.outputs.api_url }}
+          VITE_APP_S3_BUCKET_URL: ${{ vars.VITE_APP_S3_BUCKET_URL }}
+        run: npm run build
+
+      # ----------------------------------------------------------
+      # Deploy frontend
+      # ----------------------------------------------------------
+
+      - name: Upload frontend to S3
+        run: |
+          aws s3 sync bike-app/dist/ \
+            "s3://${{ steps.infrastructure.outputs.frontend_bucket }}/" \
+            --delete
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.infrastructure.outputs.distribution_id }}" \
+            --paths "/*"
+
+      # ----------------------------------------------------------
+      # Deployment summary
+      # ----------------------------------------------------------
+
+      - name: Deployment summary
+        run: |
+          echo "### PedalWorks Deployment Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SAM backend deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- React frontend built" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Frontend uploaded to private S3" >> "$GITHUB_STEP_SUMMARY"
+          echo "- CloudFront invalidation requested" >> "$GITHUB_STEP_SUMMARY"
