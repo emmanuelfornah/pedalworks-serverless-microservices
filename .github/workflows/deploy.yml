@@ -81,6 +81,9 @@ jobs:
             --no-confirm-changeset \
             --no-fail-on-empty-changeset
 
+      - name: Install seed dependencies
+        run: pip install boto3
+
       - name: Seed DynamoDB products
         working-directory: backend/sam-app
         run: python seed_products.py
